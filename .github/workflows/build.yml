@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: دریافت کد
         uses: actions/checkout@v5
+
       - name: پیدا کردن پوشه کد
         shell: bash
         run: |
@@ -22,25 +23,35 @@ jobs:
           if [ ! -f "$DIR/pubspec.yaml" ]; then echo "❌ فایل pubspec.yaml پیدا نشد!"; exit 1; fi
           echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
           echo "✔ پوشه کد پیدا شد: $DIR"
+
       - name: نصب جاوا ۱۷
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
       - name: نصب فلاتر
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+
       - name: ساخت نسخه انتشار اندروید
         working-directory: ${{ env.APP_DIR }}
         run: |
-          flutter create --platforms=android --org ir.bakhtiari --project-name gereh_gosha .
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org ir.bakhtiari --project-name gereh_gosha .
+          fi
+
           M=android/app/src/main/AndroidManifest.xml
-          sed -i 's/android:label="gereh_gosha"/android:label="گره‌گشا"/' "$M"
-          grep -q RECORD_AUDIO "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$M"
+          if [ -f "$M" ]; then
+            sed -i 's/android:label="gereh_gosha"/android:label="گره‌گشا"/' "$M"
+            grep -q RECORD_AUDIO "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$M"
+          fi
+
           flutter pub get
           dart run flutter_launcher_icons
           flutter build apk --release
+
       - name: آپلود فایل نصبی اندروید
         uses: actions/upload-artifact@v5
         with:
@@ -54,6 +65,7 @@ jobs:
     steps:
       - name: دریافت کد
         uses: actions/checkout@v5
+
       - name: پیدا کردن پوشه کد
         shell: bash
         run: |
@@ -65,20 +77,26 @@ jobs:
           if [ ! -f "$DIR/pubspec.yaml" ]; then echo "❌ فایل pubspec.yaml پیدا نشد!"; exit 1; fi
           echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
           echo "✔ پوشه کد پیدا شد: $DIR"
+
       - name: نصب فلاتر
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+
       - name: ساخت نسخه انتشار ویندوز
         working-directory: ${{ env.APP_DIR }}
         shell: bash
         run: |
-          flutter create --platforms=windows --org ir.bakhtiari --project-name gereh_gosha .
+          if [ ! -d windows ]; then
+            flutter create --platforms=windows --org ir.bakhtiari --project-name gereh_gosha .
+          fi
+
           flutter pub get
           (dart run flutter_launcher_icons) || true
           flutter build windows --release
           mkdir -p dist
           powershell -NoProfile -Command "Compress-Archive -Path 'build\windows\x64\runner\Release\*' -DestinationPath 'dist\GerehGosha-1.0.0-Windows.zip' -Force"
+
       - name: آپلود نسخه ویندوز
         uses: actions/upload-artifact@v5
         with:
