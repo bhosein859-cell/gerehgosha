@@ -1,0 +1,87 @@
+name: Build GerehGosha
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  android:
+    name: ساخت اندروید (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - name: دریافت کد
+        uses: actions/checkout@v5
+      - name: پیدا کردن پوشه کد
+        shell: bash
+        run: |
+          DIR=$(dirname "$(find . -maxdepth 3 -name pubspec.yaml -not -path '*/.git/*' | head -n1)")
+          if [ ! -f "$DIR/pubspec.yaml" ] && ls *.zip >/dev/null 2>&1; then
+            unzip -q "$(ls *.zip | head -n1)"
+            DIR=$(dirname "$(find . -maxdepth 3 -name pubspec.yaml -not -path '*/.git/*' | head -n1)")
+          fi
+          if [ ! -f "$DIR/pubspec.yaml" ]; then echo "❌ فایل pubspec.yaml پیدا نشد!"; exit 1; fi
+          echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
+          echo "✔ پوشه کد پیدا شد: $DIR"
+      - name: نصب جاوا ۱۷
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: نصب فلاتر
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: ساخت نسخه انتشار اندروید
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          flutter create --platforms=android --org ir.bakhtiari --project-name gereh_gosha .
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="gereh_gosha"/android:label="گره‌گشا"/' "$M"
+          grep -q RECORD_AUDIO "$M" || sed -i 's|<application|<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$M"
+          flutter pub get
+          dart run flutter_launcher_icons
+          flutter build apk --release
+      - name: آپلود فایل نصبی اندروید
+        uses: actions/upload-artifact@v5
+        with:
+          name: GerehGosha-1.0.0-Android
+          path: ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 60
+
+  windows:
+    name: ساخت ویندوز (EXE)
+    runs-on: windows-latest
+    steps:
+      - name: دریافت کد
+        uses: actions/checkout@v5
+      - name: پیدا کردن پوشه کد
+        shell: bash
+        run: |
+          DIR=$(dirname "$(find . -maxdepth 3 -name pubspec.yaml -not -path '*/.git/*' | head -n1)")
+          if [ ! -f "$DIR/pubspec.yaml" ]; then
+            powershell -NoProfile -Command "Expand-Archive -Path (Get-ChildItem -Filter *.zip | Select-Object -First 1).FullName -DestinationPath '.' -Force"
+            DIR=$(dirname "$(find . -maxdepth 3 -name pubspec.yaml -not -path '*/.git/*' | head -n1)")
+          fi
+          if [ ! -f "$DIR/pubspec.yaml" ]; then echo "❌ فایل pubspec.yaml پیدا نشد!"; exit 1; fi
+          echo "APP_DIR=$DIR" >> "$GITHUB_ENV"
+          echo "✔ پوشه کد پیدا شد: $DIR"
+      - name: نصب فلاتر
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: ساخت نسخه انتشار ویندوز
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        run: |
+          flutter create --platforms=windows --org ir.bakhtiari --project-name gereh_gosha .
+          flutter pub get
+          (dart run flutter_launcher_icons) || true
+          flutter build windows --release
+          mkdir -p dist
+          powershell -NoProfile -Command "Compress-Archive -Path 'build\windows\x64\runner\Release\*' -DestinationPath 'dist\GerehGosha-1.0.0-Windows.zip' -Force"
+      - name: آپلود نسخه ویندوز
+        uses: actions/upload-artifact@v5
+        with:
+          name: GerehGosha-1.0.0-Windows
+          path: ${{ env.APP_DIR }}/dist/GerehGosha-1.0.0-Windows.zip
+          retention-days: 60
